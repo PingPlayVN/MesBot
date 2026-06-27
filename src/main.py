@@ -253,12 +253,15 @@ class SimpleBot:
         p = self.prefix
         self._reply(snap, (
             "📖 Lệnh hỗ trợ:\n"
-            f"• {p}ping            — kiểm tra độ trễ\n"
-            f"• {p}help            — hiển thị trợ giúp\n"
-            f"• {p}id              — xem threadID + userID\n"
-            f"• {p}echo <text>     — lặp lại nội dung\n"
-            f"• {p}search <từ>     — tìm user Facebook\n"
-            f"• {p}unsend          — thu hồi tin nhắn cuối của bot"
+            f"• {p}ping — kiểm tra độ trễ\n"
+            f"• {p}help — hiển thị trợ giúp\n"
+            f"• {p}id — xem threadID + userID\n"
+            f"• {p}echo <text> — lặp lại nội dung\n"
+            f"• {p}search <từ> — tìm user Facebook\n"
+            f"• {p}unsend — thu hồi tin nhắn cuối của bot\n"
+            f"• {p}hibot — lời chào thân thiện\n"
+            f"• {p}doanso — minigame đoán số từ 1 đến 100\n"
+            f"• {p}huygame — hủy trò chơi"
         ))
 
     def _cmd_id(self, snap: dict, arg: str) -> None:
