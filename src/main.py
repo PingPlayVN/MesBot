@@ -125,6 +125,8 @@ class SimpleBot:
         # Lưu messageID cuối cùng bot đã gửi vào mỗi thread (cho /unsend)
         self._last_bot_message: dict[str, str] = {}
 
+        self._games = {}
+
         # Map prefix-less command -> handler
         self._handlers = {
             "ping":   self._cmd_ping,
@@ -134,6 +136,8 @@ class SimpleBot:
             "search": self._cmd_search,
             "unsend": self._cmd_unsend,
             "hibot":  self._cmd_hibot,
+            "doanso": self._cmd_doanso,
+            "huygame": self._cmd_huygame,
         }
 
     # -- public ---------------------------------------------------------------
@@ -185,6 +189,10 @@ class SimpleBot:
         log("recv", f"[{snap.get('type')}] {sender_id}@{snap.get('replyToID')}: {body!r}")
 
         if not body.startswith(self.prefix):
+            # [THÊM MỚI] Xử lý đoán số: Nếu chat là số và nhóm đang có game
+            thread_id = str(snap.get("replyToID"))
+            if thread_id in self._games and body.strip().isdigit():
+                self._handle_guess(snap, thread_id, int(body.strip()))
             return
 
         # Tách lệnh
@@ -333,6 +341,56 @@ class SimpleBot:
             
         # Trả lời lại vào nhóm chat với câu đã bốc thăm được
         self._reply(snap, cau_tra_loi_ngau_nhien)
+
+    def _cmd_doanso(self, snap: dict, arg: str) -> None:
+        import random
+        thread_id = str(snap["replyToID"])
+        
+        # Kiểm tra xem nhóm có đang chơi dở ván nào không
+        if thread_id in self._games:
+            self._reply(snap, "⚠️ Nhóm đang có ván game chưa kết thúc! Hãy đoán số hoặc gõ /huygame để chơi ván mới.")
+            return
+        
+        # Bot random số từ 1 đến 100 và lưu lại
+        so_bi_mat = random.randint(1, 100)
+        self._games[thread_id] = so_bi_mat
+        
+        loi_chao = (
+            "🎮 TRÒ CHƠI ĐOÁN SỐ BẮT ĐẦU!\n"
+            "Bot đã nghĩ ra một số từ 1 đến 100.\n"
+            "Cả nhóm hãy thi nhau gõ thẳng một con số vào nhóm để đoán nhé! (Ví dụ nhắn: 50)"
+        )
+        self._reply(snap, loi_chao)
+
+    def _cmd_huygame(self, snap: dict, arg: str) -> None:
+        thread_id = str(snap["replyToID"])
+        if thread_id in self._games:
+            dap_an = self._games.pop(thread_id)
+            self._reply(snap, f"🛑 Đã hủy ván game. Đáp án đúng là: {dap_an}")
+        else:
+            self._reply(snap, "Hiện tại không có ván game nào để hủy.")
+
+    def _handle_guess(self, snap: dict, thread_id: str, doan: int) -> None:
+        so_bi_mat = self._games[thread_id]
+        
+        if doan == so_bi_mat:
+            # Nếu đoán TRÚNG
+            user_id = str(snap.get("userID") or "")
+            user_name = "bạn"
+            try:
+                res = _get_user_info.func(self.dataFB, user_id)
+                if isinstance(res, dict) and "err" not in res:
+                    user_name = res.get("nameUser") or res.get("firstName") or "bạn"
+            except:
+                pass
+                
+            self._games.pop(thread_id) # Kết thúc game, xóa bộ nhớ
+            self._reply(snap, f"🎉 CHÚC MỪNG {user_name.upper()} ĐÃ ĐOÁN TRÚNG!\n🏆 Đáp án chính xác là {so_bi_mat}.")
+            
+        elif doan < so_bi_mat:
+            self._reply(snap, f"📈 Số {doan} bé quá, phải LỚN HƠN nữa!")
+        else:
+            self._reply(snap, f"📉 Số {doan} bự quá, phải NHỎ HƠN nữa!")
 
 
 # ---------------------------------------------------------------------------
