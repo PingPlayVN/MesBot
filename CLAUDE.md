@@ -357,7 +357,7 @@ Standalone test driver for the E2EE listener. Reads cookie from env `FBCHAT_COOK
 
 ---
 
-## Common gotchas (real bugs we hit)
+## Common gotchas (real bugs we hit).
 
 | Symptom                                                                           | Cause / Fix                                                                                                              |
 |-----------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------|
