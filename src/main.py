@@ -306,27 +306,33 @@ class SimpleBot:
         self._last_bot_message.pop(thread_id, None)
 
     def _cmd_hibot(self, snap: dict, arg: str) -> None:
+        import random # Thêm thư viện random vào đây để trộn tin nhắn
+
         # Lấy ID Facebook của người gửi tin nhắn
         user_id = str(snap.get("userID") or "")
         user_name = "bạn"
         
-        # IN RA MÀN HÌNH ĐỂ DEBUG:
-        print(f"\n[DEBUG] Đang lấy thông tin cho userID: {user_id}")
-        
         try:
             res = _get_user_info.func(self.dataFB, user_id)
-            
-            # IN KẾT QUẢ FACEBOOK TRẢ VỀ RA MÀN HÌNH:
-            print(f"[DEBUG] Kết quả từ Facebook: {res}\n") 
-            
             if isinstance(res, dict) and "err" not in res:
                 user_name = res.get("nameUser") or res.get("firstName") or "bạn"
-                
         except Exception as exc:
             log("err", f"Không thể lấy tên user: {exc}")
             
-        # Trả lời lại vào nhóm chat
-        self._reply(snap, f"Hi {user_name} mình là Bot bạn Thế Quang. Thế Quang là Top đó!!! Bạn có biết không? ")
+        # Bỏ tất cả các câu chào bạn muốn vào một danh sách (List)
+        danh_sach_chao = [
+            f"Hi {user_name} mình là bạn thế quang ",
+            f"👋 Chào {user_name}! Tôi không biết đọc suy nghĩ đâu, gõ lệnh đi. 😭",
+            f"🤖 Xin chào {user_name}! Tín hiệu ổn định. Não của tôi cũng tạm ổn",
+            "🐸 Hello! Tôi là bot, không phải Google nên đừng hỏi 'bạn khỏe không'.",
+            "😎 Yo! Tôi là bot, đẹp trai nhất trong đoạn chat này."
+        ]
+        
+        # Lệnh random.choice sẽ bốc thăm ngẫu nhiên 1 câu trong danh sách trên
+        cau_tra_loi_ngau_nhien = random.choice(danh_sach_chao)
+            
+        # Trả lời lại vào nhóm chat với câu đã bốc thăm được
+        self._reply(snap, cau_tra_loi_ngau_nhien)
 
 
 # ---------------------------------------------------------------------------
