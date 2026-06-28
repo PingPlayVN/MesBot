@@ -265,41 +265,81 @@ class SimpleBot:
     # -- commands -------------------------------------------------------------
 
     def _cmd_ping(self, snap: dict, arg: str) -> None:
+        import random
+        import time
+        
         sent_ts = int(snap.get("timestamp") or 0)
-        if sent_ts:
-            latency_ms = max(0, int(time.time() * 1000) - sent_ts)
-            self._reply(snap, f"🏓 pong! ({latency_ms} ms)")
-        else:
-            self._reply(snap, "🏓 pong!")
+        latency_ms = max(0, int(time.time() * 1000) - sent_ts) if sent_ts else 0
+        
+        # Danh sách các câu trả lời ngẫu nhiên
+        danh_sach_ping = [
+            f"🏓 Pong! Tốc độ bàn thờ: {latency_ms} ms nha.",
+            f"Hệ thống vẫn sống nhăn răng! Độ trễ: {latency_ms} ms.",
+            f"Ping cái gì mà ping, pong nè! ({latency_ms} ms)",
+            f"Dạ có em! Đang lướt sóng với tốc độ {latency_ms} ms.",
+            f"Lag quá lag quá... đùa tí, tốc độ là {latency_ms} ms nhé!"
+        ]
+        
+        self._reply(snap, random.choice(danh_sach_ping))
 
     def _cmd_help(self, snap: dict, arg: str) -> None:
+        import random
         p = self.prefix
-        self._reply(snap, (
-            "📖 Lệnh hỗ trợ:\n"
+        
+        # Random phần mở bài
+        intro = random.choice([
+            "📖 Chào đằng ấy, đây là bí kíp võ công của bot:\n",
+            "🤖 Menu phục vụ của quán hôm nay gồm có:\n",
+            "✨ Để tui liệt kê sương sương mấy tài lẻ của tui nha:\n",
+            "💁‍♂️ Khách yêu cần gì cứ gọi theo cú pháp này nha:\n"
+        ])
+        
+        cmds = (
             f"• {p}ping — kiểm tra độ trễ\n"
             f"• {p}help — hiển thị trợ giúp\n"
             f"• {p}id — xem threadID + userID\n"
-            f"• {p}echo <text> — lặp lại nội dung\n"
-            f"• {p}search <từ> — tìm user Facebook\n"
-            f"• {p}unsend — thu hồi tin nhắn cuối của bot\n"
-            f"• {p}hibot — lời chào thân thiện\n"
-            f"• {p}doanso — minigame đoán số từ 1 đến 100\n"
-            f"• {p}huygame — hủy trò chơi"
-        ))
+            f"• {p}echo <text> — nhại lại tiếng người\n"
+            f"• {p}search <từ> — mò Info Facebook\n"
+            f"• {p}unsend — phi tang chứng cứ (chỉ Admin)\n"
+            f"• {p}hibot — gọi bot lên tâm sự mỏng"
+        )
+        self._reply(snap, intro + cmds)
 
     def _cmd_id(self, snap: dict, arg: str) -> None:
-        self._reply(snap, (
+        import random
+        id_info = (
             f"🆔 type      : {snap.get('type')}\n"
             f"   threadID  : {snap.get('replyToID')}\n"
             f"   userID    : {snap.get('userID')}\n"
             f"   messageID : {snap.get('messageID')}"
-        ))
+        )
+        # Random câu dẫn
+        loi_dan = random.choice([
+            "Trình lên sếp thông tin định danh đây ạ:\n",
+            "Quét radar thành công! Info của nhóm/người này:\n",
+            "Đã moi ra được ID gốc, mời sếp check:\n",
+            "Hồ sơ tuyệt mật đây, đừng để lộ nha:\n"
+        ])
+        self._reply(snap, loi_dan + id_info)
 
     def _cmd_echo(self, snap: dict, arg: str) -> None:
+        import random
         if not arg:
-            self._reply(snap, f"Cách dùng: {self.prefix}echo <nội dung>")
+            loi_nhac = random.choice([
+                f"Cách dùng: {self.prefix}echo <nội dung>. Phải có chữ mới nhại được chứ!",
+                "Gõ thiếu rồi má ơi. Thêm nội dung đằng sau lệnh đi.",
+                "Định bắt tui nhại lại không khí à? Điền thêm chữ vào!"
+            ])
+            self._reply(snap, loi_nhac)
             return
-        self._reply(snap, arg)
+            
+        kieu_nhai = random.choice([
+            arg,
+            f"Loa loa loa: {arg}",
+            f"Đã nhận thông điệp: {arg}",
+            f"Bản sao y chính bản: {arg}"
+        ])
+        self._reply(snap, kieu_nhai)
 
     def _cmd_search(self, snap: dict, arg: str) -> None:
         if not arg:
@@ -308,7 +348,12 @@ class SimpleBot:
         try:
             res = _search.func(self.dataFB, arg)
         except Exception as exc:  # noqa: BLE001
-            self._reply(snap, f"❌ Lỗi tìm kiếm: {exc}")
+            loi_ky_thuat = [
+                f"❌ Lỗi rồi má ơi: {exc}",
+                f"Bị Facebook chặn họng rồi, thử lại sau nha (Lỗi: {exc})",
+                f"Máy móc dạo này chán quá, tìm không ra (Lỗi: {exc})"
+            ]
+            self._reply(snap, random.choice(loi_ky_thuat))
             return
 
         users = res.get("searchResultsDict") if isinstance(res, dict) else None
@@ -322,21 +367,36 @@ class SimpleBot:
         self._reply(snap, "\n".join(lines))
 
     def _cmd_unsend(self, snap: dict, arg: str) -> None:
-        # Chỉ admin mới được dùng nếu có cấu hình admins
+        import random
         sender_id = str(snap.get("userID") or "")
+        
+        # Kịch bản 1: Không phải admin mà dám dùng lệnh
         if self.admins and sender_id not in self.admins:
-            self._reply(snap, "⛔ Chỉ admin mới được dùng lệnh này.")
+            tu_choi = [
+                "⛔ Xin lỗi, bạn chưa đủ trình! Chỉ Admin mới được xài.",
+                "Ủa ai cho xài lệnh này? Kêu Admin ra đây nói chuyện!",
+                "Quyền lực của bạn bằng 0 ở lệnh này nhé. Đòi làm Admin à?",
+                "Bạn tuổi gì đòi thu hồi tin nhắn của tui? 🐧"
+            ]
+            self._reply(snap, random.choice(tu_choi))
             return
 
         thread_id = str(snap["replyToID"])
         target = self._last_bot_message.get(thread_id)
+        
+        # Kịch bản 2: Không có tin nhắn để xóa
         if not target:
-            self._reply(snap, "ℹ️ Chưa có tin nào để thu hồi trong thread này.")
+            khong_co_tin = [
+                "ℹ️ Có tin nào đâu mà thu hồi? Bị lú à?",
+                "Ủa tôi có nhắn gì đâu mà bắt thu hồi?",
+                "Quét mỏi mắt không thấy tin nhắn nào của tui để xóa.",
+                "Mới ngủ dậy, trí nhớ trống rỗng, không biết thu hồi cái nào hết á!"
+            ]
+            self._reply(snap, random.choice(khong_co_tin))
             return
 
         result = unsend_message(target, self.dataFB)
         log("unsend", f"{target} -> {result}")
-        # Sau khi thu hồi → quên ID đó
         self._last_bot_message.pop(thread_id, None)
 
     def _cmd_hibot(self, snap: dict, arg: str) -> None:
@@ -372,106 +432,133 @@ class SimpleBot:
         import random
         thread_id = str(snap["replyToID"])
         
-        # Kiểm tra xem nhóm có đang chơi dở ván nào không
+        # Kịch bản báo lỗi nếu đang có game
         if thread_id in self._games:
-            self._reply(snap, "⚠️ Nhóm đang có ván game chưa kết thúc! Hãy đoán số hoặc gõ /huygame để chơi ván mới.")
+            canh_bao = [
+                "⚠️ Đang chơi dở ván đoán số rồi, tập trung đoán đi mấy bạn.",
+                "Game cũ chưa xong đã đòi mở game mới? Gõ /huygame đi nhé.",
+                "Sòng bạc đang mở rồi! Đoán nốt ván hiện tại đi."
+            ]
+            self._reply(snap, random.choice(canh_bao))
             return
         
-        # Bot random số từ 1 đến 100 và lưu lại
+        # Bot random số từ 1 đến 100
         so_bi_mat = random.randint(1, 100)
         self._games[thread_id] = so_bi_mat
         
-        loi_chao = (
-            "🎮 TRÒ CHƠI ĐOÁN SỐ BẮT ĐẦU!\n"
-            "Bot đã nghĩ ra một số từ 1 đến 100.\n"
-            "Cả nhóm hãy thi nhau gõ thẳng một con số vào nhóm để đoán nhé! (Ví dụ nhắn: 50)"
-        )
-        self._reply(snap, loi_chao)
+        # Kịch bản mời chào người chơi
+        loi_chao = [
+            "🎮 TRÒ CHƠI ĐOÁN SỐ BẮT ĐẦU!\nBot đã giấu một con số từ 1 đến 100. Ai có năng lực ngoại cảm thì nhào vô!",
+            "🎲 SÒNG BẠC MỞ CỬA!\nTôi đang giữ 1 con số bí mật từ 1-100. Ai đoán trúng được tôn làm thánh!",
+            "🔢 THỬ THÁCH NHÂN PHẨM!\nĐố cả nhóm biết tôi đang nghĩ số mấy từ 1 đến 100? Nhắn thẳng số vào đây nha."
+        ]
+        self._reply(snap, random.choice(loi_chao))
 
     def _cmd_huygame(self, snap: dict, arg: str) -> None:
+        import random
         thread_id = str(snap["replyToID"])
+        
         if thread_id in self._games:
-            game_data = self._games.pop(thread_id)
-            if isinstance(game_data, int): # Của trò đoán số
-                self._reply(snap, f"🛑 Đã hủy game Đoán số. Đáp án đúng là: {game_data}")
-            else: # Của trò nối từ
-                self._reply(snap, "🛑 Đã kết thúc trò chơi Nối từ. Cả nhóm chat bình thường nhé!")
+            dap_an = self._games.pop(thread_id)
+            huy_game = [
+                f"🛑 Dẹp dẹp! Nghỉ chơi. Đáp án đúng là: {dap_an}",
+                f"🏳️ Bỏ cuộc à? Tưởng thế nào! Đáp án dễ ẹc: {dap_an}",
+                f"Thôi giải tán, đoán mãi không ra tốn thời gian. Số bí mật là {dap_an} nha.",
+                f"Lần sau nhân phẩm tốt hơn hãy chơi nha. Số trúng thưởng là {dap_an}."
+            ]
+            self._reply(snap, random.choice(huy_game))
         else:
-            self._reply(snap, "Hiện tại không có ván game nào để hủy.")
+            khong_co_game = [
+                "Hiện tại không có ván game nào để hủy hết á.",
+                "Có chơi đâu mà đòi hủy? Ngáo à?",
+                "Chưa start game đã đòi end là sao ta?"
+            ]
+            self._reply(snap, random.choice(khong_co_game))
 
     def _cmd_noitu(self, snap: dict, arg: str) -> None:
         import random
         thread_id = str(snap["replyToID"])
         
         if thread_id in self._games:
-            self._reply(snap, "⚠️ Nhóm đang có ván game chưa xong! Hãy gõ /huygame nếu muốn chơi ván mới.")
+            self._reply(snap, random.choice([
+                "⚠️ Đang có game chơi dở kìa mấy má. Tập trung đi!",
+                "Chưa xong ván này đòi ván khác? /huygame đi rồi tính.",
+                "Sân chơi đang có người dùng rồi nha, từ từ đã."
+            ]))
             return
         
-        kho_tu = ["con mèo", "hoa hồng", "bầu trời", "máy tính", "gia đình", "tình yêu", "bạn bè"]
+        kho_tu = ["con mèo", "hoa hồng", "bầu trời", "máy tính", "gia đình", "tình yêu", "bạn bè", "tương lai"]
         tu_khoi_dau = random.choice(kho_tu)
         chu_cuoi = tu_khoi_dau.split()[1]
         
-        # LƯU THÊM 2 BIẾN TRẠNG THÁI MỚI VÀO GAME
         self._games[thread_id] = {
             "type": "noitu",
             "last_char": chu_cuoi,
             "used": [tu_khoi_dau],
-            "last_user_id": None,  # Để nhớ xem ai vừa chơi
-            "is_checking": False   # Cờ khóa: Đánh dấu đang bận tra từ điển
+            "last_user_id": None,  
+            "is_checking": False   
         }
         
-        luat_choi = (
-            "🔤 TRÒ CHƠI NỐI TỪ BẮT ĐẦU!\n"
-            "Luật 1: Mỗi người 1 lượt, không được nối 2 lần liên tiếp.\n"
-            "Luật 2: Đợi Trọng tài check xong mới được nối tiếp.\n\n"
-            f"Từ khởi đầu của Bot: {tu_khoi_dau.upper()}\n"
-            f"👉 Tiếp theo bắt đầu bằng chữ: '{chu_cuoi.upper()}'"
-        )
-        self._reply(snap, luat_choi)
+        mo_dau = random.choice([
+            f"🔤 ĐẠI CHIẾN NỐI TỪ KHỞI TRANH!\nLuật: Mỗi người 1 lượt, đợi check xong mới nối.\n\nTừ mồi: 【 {tu_khoi_dau.upper()} 】\n👉 Tiếp theo bắt đầu bằng chữ: '{chu_cuoi.upper()}'",
+            f"🔥 LÊN SÀN! Ai vua tiếng Việt thì nhào vô!\nKhông nối 2 lần liên tiếp, cấm xài lại từ cũ nha.\n\nBot đi trước: 【 {tu_khoi_dau.upper()} 】\n👉 Đố ai nối được chữ '{chu_cuoi.upper()}'!"
+        ])
+        self._reply(snap, mo_dau)
 
     def _handle_noitu(self, snap: dict, thread_id: str, text: str) -> None:
         import requests
+        import random
         
         game = self._games[thread_id]
         user_id = str(snap.get("userID") or "")
         
-        # ====================================================
-        # LUẬT 1: CHỜ BOT CHECK XONG (KHÓA ĐỒNG BỘ)
-        # Nếu bot đang bận lên mạng tra từ điển thì bỏ qua mọi tin nhắn khác
         if game.get("is_checking") == True:
             return 
             
-        # LUẬT 2: KHÔNG ĐƯỢC CHƠI 2 LƯỢT LIÊN TIẾP
+        # Nối 2 lần liên tiếp
         if user_id == game.get("last_user_id"):
-            self._reply(snap, "🚫 Tham lam! Bạn vừa nối rồi, hãy nhường cơ hội cho người khác đi.")
+            self._reply(snap, random.choice([
+                "🚫 Bớt tham lam! Nhường người khác nối đi chứ.",
+                "Ê ê, 1 người không được đi 2 bước liên tục nha!",
+                "Định solo một mình hay gì? Đợi người khác nối đã."
+            ]))
             return
-        # ====================================================
 
         words = text.split()
         
-        # 0. BỘ LỌC TỪ BẬY
+        # BỘ LỌC TỪ BẬY
         danh_sach_den = ["cặc", "lồn", "đụ", "đĩ", "buồi", "dái", "cứt", "phò", "nứng", "địt"]
         for tu_bay in danh_sach_den:
             if tu_bay in text:
-                self._reply(snap, f"🤬 Thẻ đỏ! Dùng từ thô tục '{text.upper()}' nha! Nhập lại từ khác đi.")
+                self._reply(snap, random.choice([
+                    f"🤬 Vô văn hóa! Chữ '{text.upper()}' mà cũng lôi ra được. Nhập lại đi!",
+                    f"Thẻ đỏ! Bot hiền chứ không có mù nha. Cấm dùng từ bậy!",
+                    f"Cảnh cáo! Nhóm văn minh không xài chữ '{text.upper()}'. Đổi từ khác mau."
+                ]))
                 return
 
-        # 1. Kiểm tra luật nối chữ
+        # Sai chữ bắt đầu
         if words[0] != game["last_char"]:
-            self._reply(snap, f"❌ Sai rồi! Phải bắt đầu bằng chữ '{game['last_char'].upper()}'.")
+            self._reply(snap, random.choice([
+                f"❌ Lạc đề! Người ta bảo nối chữ '{game['last_char'].upper()}' mà?",
+                f"Ủa đọc lộn đề hả? Bắt đầu bằng chữ '{game['last_char'].upper()}' giùm.",
+                f"Mắt để đi đâu đấy? Nối bằng chữ '{game['last_char'].upper()}' cơ mà!"
+            ]))
             return
             
-        # 2. Kiểm tra từ trùng lặp
+        # Bị trùng từ
         if text in game["used"]:
-            self._reply(snap, f"♻️ Từ '{text.upper()}' đã có người dùng rồi! Vui lòng nghĩ từ khác.")
+            self._reply(snap, random.choice([
+                f"♻️ Tối cổ à? Chữ '{text.upper()}' có người xài rồi!",
+                f"Lặp từ kìa! '{text.upper()}' xài rồi, rớt đài, kiếm từ khác đi.",
+                f"Bí từ rồi đúng không? '{text.upper()}' bị lấy mất rồi nha."
+            ]))
             return
             
-        # KHÓA GAME LẠI: Đánh dấu đang tra từ điển để chặn người khác xông vào
         game["is_checking"] = True
-        
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
         
-        # 3. Kiểm tra từ có nghĩa
+        # Check Wikipedia
         try:
             url = f"https://vi.wiktionary.org/w/api.php?action=query&titles={text}&format=json"
             res = requests.get(url, headers=headers, timeout=5).json()
@@ -483,21 +570,27 @@ class SimpleBot:
                     is_valid = False
                     
             if not is_valid:
-                self._reply(snap, f"❓ Chữ '{text.upper()}' không có trong từ điển tiếng Việt! Bớt tự bịa ra đi nha.")
-                game["is_checking"] = False # Nhả khóa ra cho nhập lại
+                self._reply(snap, random.choice([
+                    f"❓ Chữ '{text.upper()}' tự bịa hả? Từ điển tiếng Việt không có nha!",
+                    f"Lại chế từ rồi! Wikipedia không công nhận chữ '{text.upper()}' đâu.",
+                    f"'{text.upper()}' nghĩa là gì? Đừng có ghép bừa chứ, từ điển khóc đấy."
+                ]))
+                game["is_checking"] = False 
                 return
         except Exception as e:
             print(f"[Lỗi Từ Điển] {e}")
-            self._reply(snap, f"⚠️ Trọng tài đang bị lỗi không tra được từ điển lúc này. Thử lại chữ khác nhé!")
-            game["is_checking"] = False # Nhả khóa ra
+            self._reply(snap, random.choice([
+                "⚠️ Trọng tài đang lag mạng, không tra từ điển được. Gõ lại chữ khác xem sao!",
+                "Căng quá đứt mạng rồi, anh em nương tay nhập lại từ khác giúp bot nha."
+            ]))
+            game["is_checking"] = False 
             return
             
-        # 4. Ghi nhận từ hợp lệ
+        # Ghi nhận từ hợp lệ
         game["used"].append(text)
         game["last_char"] = words[1]
-        game["last_user_id"] = user_id # Lưu ID của người vừa nối thành công
+        game["last_user_id"] = user_id 
         
-        # Lấy tên người chơi
         user_name = "Người chơi"
         try:
             res = _get_user_info.func(self.dataFB, str(snap.get("userID") or ""))
@@ -506,7 +599,7 @@ class SimpleBot:
         except:
             pass
 
-        # 5. KIỂM TRA ĐƯỜNG CÙNG (CƠ CHẾ KẾT THÚC GAME)
+        # KIỂM TRA ĐƯỜNG CÙNG (CƠ CHẾ KẾT THÚC GAME)
         try:
             check_url = f"https://vi.wiktionary.org/w/api.php?action=query&list=prefixsearch&pssearch={game['last_char']} &format=json"
             check_res = requests.get(check_url, headers=headers, timeout=5).json()
@@ -521,28 +614,33 @@ class SimpleBot:
                     
             if not has_continuation:
                 self._games.pop(thread_id)
-                msg_win = (
-                    f"🏆 ĐỈNH CẤP!\n"
-                    f"{user_name} vừa thả một từ 'chí mạng': 【 {text.upper()} 】\n\n"
-                    f"Từ điển tiếng Việt đã bó tay, không còn từ nào có thể nối tiếp chữ '{game['last_char'].upper()}' nữa!\n"
-                    f"🎉 CHÚC MỪNG {user_name.upper()} ĐÃ TRỞ THÀNH NGƯỜI CHIẾN THẮNG! 👑"
-                )
+                msg_win = random.choice([
+                    f"🏆 ÔI THẦN LINH ƠI!\n{user_name} tung quả chốt 【 {text.upper()} 】 đi vào lòng đất, không ai nối tiếp chữ '{game['last_char'].upper()}' được nữa!\n🎉 THẮNG RỒI!",
+                    f"👑 ĐỈNH CẤP NHÂN SINH!\nTừ điển cũng bó tay với chữ 【 {text.upper()} 】 của {user_name}!\n🎉 CHÚC MỪNG NHÀ VÔ ĐỊCH!",
+                    f"💥 K.O! KNOCK OUT!\n{user_name} vừa chặn mọi đường sống của chữ '{game['last_char'].upper()}'!\n🎉 QUÁ XUẤT SẮC!"
+                ])
                 self._reply(snap, msg_win)
-                # Game đã kết thúc (xóa khỏi bộ nhớ) nên không cần nhả khóa is_checking nữa
                 return
                 
         except Exception as e:
             print(f"[Lỗi Kiểm Tra End Game] {e}")
 
-        # 6. MỞ KHÓA VÀ CHO CHƠI TIẾP
-        self._reply(snap, f"✅ {user_name} nối chuẩn!\n👉 Chữ tiếp theo: '{game['last_char'].upper()}'...")
-        game["is_checking"] = False # Nhả khóa ra để người khác nối
+        # Tiếp tục game với phản hồi khen ngợi ngẫu nhiên
+        khen_ngoi = random.choice([
+            f"✅ Mượt! {user_name} nối đúng.\n👉 Tiếp: '{game['last_char'].upper()}'...",
+            f"Duyệt! {user_name} hay đấy.\n👉 Ai nối được chữ '{game['last_char'].upper()}' nào?",
+            f"Hợp lệ nha {user_name}!\n👉 Tới công chuyện với chữ '{game['last_char'].upper()}' đi.",
+            f"✅ Quá chuẩn!\n👉 Không chần chờ, bắt đầu bằng '{game['last_char'].upper()}' đi 500 anh em."
+        ])
+        self._reply(snap, khen_ngoi)
+        game["is_checking"] = False
 
     def _handle_guess(self, snap: dict, thread_id: str, doan: int) -> None:
+        import random
         so_bi_mat = self._games[thread_id]
         
         if doan == so_bi_mat:
-            # Nếu đoán TRÚNG
+            # Đoán trúng
             user_id = str(snap.get("userID") or "")
             user_name = "bạn"
             try:
@@ -552,13 +650,34 @@ class SimpleBot:
             except:
                 pass
                 
-            self._games.pop(thread_id) # Kết thúc game, xóa bộ nhớ
-            self._reply(snap, f"🎉 CHÚC MỪNG {user_name.upper()} ĐÃ ĐOÁN TRÚNG!\n🏆 Đáp án chính xác là {so_bi_mat}.")
+            self._games.pop(thread_id)
+            
+            khen_thuong = [
+                f"🎉 BINGO! {user_name.upper()} ĐÃ ĐOÁN TRÚNG SỐ {so_bi_mat}! Đỉnh của chóp!",
+                f"🏆 CHẤN ĐỘNG! {user_name.upper()} đọc được suy nghĩ của tôi à? Đáp án chính xác là {so_bi_mat}.",
+                f"Thánh đoán đây rồi! Xin chúc mừng {user_name.upper()} lụm giải với con số {so_bi_mat}!"
+            ]
+            self._reply(snap, random.choice(khen_thuong))
             
         elif doan < so_bi_mat:
-            self._reply(snap, f"📈 Số {doan} bé quá, phải LỚN HƠN nữa!")
+            # Đoán nhỏ hơn
+            lon_hon = [
+                f"📈 Số {doan} bé tí teo, đoán LỚN HƠN coi!",
+                f"Yếu quá, số phải bự hơn {doan} cơ.",
+                f"Chưa tới nơi rồi, đẩy số lên cao hơn {doan} đi bạn ơi.",
+                f"Số {doan} nhỏ quá, mạnh dạn cộng thêm vào đi!"
+            ]
+            self._reply(snap, random.choice(lon_hon))
+            
         else:
-            self._reply(snap, f"📉 Số {doan} bự quá, phải NHỎ HƠN nữa!")
+            # Đoán lớn hơn
+            nho_hon = [
+                f"📉 Số {doan} to quá, lố rồi, NHỎ HƠN đi!",
+                f"Mạnh tay quá, giảm số xuống dưới {doan} xíu nào.",
+                f"Nhỏ lại nhỏ lại, {doan} là bự chà bá lửa luôn á.",
+                f"Tụt xuống xíu đi, {doan} lớn quá rồi."
+            ]
+            self._reply(snap, random.choice(nho_hon))
 
 
 # ---------------------------------------------------------------------------
