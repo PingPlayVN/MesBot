@@ -35,6 +35,7 @@ import sys
 import time
 import threading
 import traceback
+import random
 from datetime import datetime
 from pathlib import Path
 
@@ -218,6 +219,16 @@ class SimpleBot:
     def _reply(self, snap: dict, content: str) -> None:
         thread_id = snap["replyToID"]
         type_chat = "user" if snap.get("type") == "user" else None
+
+        # [THÊM MỚI] LÀM CHẬM TIN NHẮN ĐỂ TRÁNH BỊ FB QUÉT SPAM
+        # Tạo delay ngẫu nhiên từ 1.0 đến 1.5 giây (1000ms - 1500ms)
+        delay_time = random.uniform(1.5, 3)
+        
+        # In ra màn hình để bạn dễ theo dõi
+        log("delay", f"Đang chờ {delay_time:.2f}s để giả lập người thật...")
+        
+        # Lệnh sleep sẽ chặn bot lại, đợi đủ thời gian mới chạy tiếp
+        time.sleep(delay_time)
 
         result = self.sender.send(
             self.dataFB,
