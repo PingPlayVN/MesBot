@@ -1,7 +1,7 @@
 {
   "botName": "fbchat-v2 demo bot",
   "prefix": "/",
-  "cookies": "datr=lfo_avubw_BYSI8XOMhhbtfI;fr=11LODly6eoe2Vvaql.AWck7TXg6h4E3j443gPUfnytEBzyNFaSIIvnhDZfHeNghGbJOEU.BqQHQ-..AAA.0.0.BqQHQ-.AWchZtLxnsX2fRis8xRebI6yCy8;xs=34%3AxiyUOg7aQEbwtg%3A2%3A1782608955%3A-1%3A-1%3A%3AAcwip8bVsV1VodQfaVp1t6LVXY5OUYZCKfmYUPj_mg;c_user=61581384077759;presence=C%7B%22t3%22%3A%5B%5D%2C%22utc3%22%3A1782608957875%2C%22v%22%3A1%7D;sb=lfo_aub_qlehlsSKlOvv0GPm;wd=1366x607",
+  "cookies": "ps_l=1;datr=lfo_avubw_BYSI8XOMhhbtfI;fr=1gzYr0Eyhhms9Lhgl.AWeNLfCo5RzknXub_PyImB1OgcHnXC0dhyeucvxxlBy_lkR8DXk.BqQKuH..AAA.0.0.BqQKuP.AWfkpAuMVlvYiXnrVisZLgE5Uyw;xs=8%3AXgFIY6akhJlx3g%3A2%3A1782623108%3A-1%3A-1%3A%3AAcyYqrxSXY9aP7625pV6AHPFwbJIWqG6Z2bWbQw-bA;c_user=61581384077759;presence=C%7B%22lm3%22%3A%22g.1693501801678612%22%2C%22t3%22%3A%5B%5D%2C%22utc3%22%3A1782623136218%2C%22v%22%3A1%7D;ps_n=1;sb=lfo_aub_qlehlsSKlOvv0GPm;wd=1366x607",
   "admins": [
     "100084733043186"
   ],
