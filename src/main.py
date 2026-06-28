@@ -343,9 +343,9 @@ class SimpleBot:
             
         # Bỏ tất cả các câu chào bạn muốn vào một danh sách (List)
         danh_sach_chao = [
-            f"Hi {user_name} mình là bạn thế quang ",
-            f"👋 Chào {user_name}! Tôi không biết đọc suy nghĩ đâu, gõ lệnh đi. 😭",
-            f"🤖 Xin chào {user_name}! Tín hiệu ổn định. Não của tôi cũng tạm ổn",
+            f"Hi @{user_name} mình là bạn thế quang ",
+            f"👋 Chào @{user_name}! Tôi không biết đọc suy nghĩ đâu, gõ lệnh đi. 😭",
+            f"🤖 Xin chào @{user_name}! Tín hiệu ổn định. Não của tôi cũng tạm ổn",
             "🐸 Hello! Tôi là bot, không phải Google nên đừng hỏi 'bạn khỏe không'.",
             "😎 Yo! Tôi là bot, đẹp trai nhất trong đoạn chat này."
         ]
