@@ -1,7 +1,7 @@
 @echo off
 cd /d "%~dp0"
 git add .
-git commit -m "new update"
+git commit -m "update noi tu"
 git push
 echo Done!
 pause

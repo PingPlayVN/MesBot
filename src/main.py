@@ -139,6 +139,7 @@ class SimpleBot:
             "hibot":  self._cmd_hibot,
             "doanso": self._cmd_doanso,
             "huygame": self._cmd_huygame,
+            "noitu":  self._cmd_noitu,
         }
 
     # -- public ---------------------------------------------------------------
@@ -190,10 +191,21 @@ class SimpleBot:
         log("recv", f"[{snap.get('type')}] {sender_id}@{snap.get('replyToID')}: {body!r}")
 
         if not body.startswith(self.prefix):
-            # [THÊM MỚI] Xử lý đoán số: Nếu chat là số và nhóm đang có game
+            # Xử lý các trò chơi đang diễn ra (không cần dấu /)
             thread_id = str(snap.get("replyToID"))
-            if thread_id in self._games and body.strip().isdigit():
-                self._handle_guess(snap, thread_id, int(body.strip()))
+            if thread_id in self._games:
+                game = self._games[thread_id]
+                text = body.strip().lower()
+                
+                # 1. Nếu là game Đoán số (game lưu dạng số nguyên)
+                if isinstance(game, int) and text.isdigit():
+                    self._handle_guess(snap, thread_id, int(text))
+                
+                # 2. Nếu là game Nối từ (game lưu dạng từ điển dict)
+                elif isinstance(game, dict) and game.get("type") == "noitu":
+                    # Chỉ kiểm tra nếu tin nhắn có đúng 2 chữ (ngăn bot rep bừa khi mọi người đang chat)
+                    if len(text.split()) == 2:
+                        self._handle_noitu(snap, thread_id, text)
             return
 
         # Tách lệnh
@@ -379,10 +391,152 @@ class SimpleBot:
     def _cmd_huygame(self, snap: dict, arg: str) -> None:
         thread_id = str(snap["replyToID"])
         if thread_id in self._games:
-            dap_an = self._games.pop(thread_id)
-            self._reply(snap, f"🛑 Đã hủy ván game. Đáp án đúng là: {dap_an}")
+            game_data = self._games.pop(thread_id)
+            if isinstance(game_data, int): # Của trò đoán số
+                self._reply(snap, f"🛑 Đã hủy game Đoán số. Đáp án đúng là: {game_data}")
+            else: # Của trò nối từ
+                self._reply(snap, "🛑 Đã kết thúc trò chơi Nối từ. Cả nhóm chat bình thường nhé!")
         else:
             self._reply(snap, "Hiện tại không có ván game nào để hủy.")
+
+    def _cmd_noitu(self, snap: dict, arg: str) -> None:
+        import random
+        thread_id = str(snap["replyToID"])
+        
+        if thread_id in self._games:
+            self._reply(snap, "⚠️ Nhóm đang có ván game chưa xong! Hãy gõ /huygame nếu muốn chơi ván mới.")
+            return
+        
+        kho_tu = ["con mèo", "hoa hồng", "bầu trời", "máy tính", "gia đình", "tình yêu", "bạn bè"]
+        tu_khoi_dau = random.choice(kho_tu)
+        chu_cuoi = tu_khoi_dau.split()[1]
+        
+        # LƯU THÊM 2 BIẾN TRẠNG THÁI MỚI VÀO GAME
+        self._games[thread_id] = {
+            "type": "noitu",
+            "last_char": chu_cuoi,
+            "used": [tu_khoi_dau],
+            "last_user_id": None,  # Để nhớ xem ai vừa chơi
+            "is_checking": False   # Cờ khóa: Đánh dấu đang bận tra từ điển
+        }
+        
+        luat_choi = (
+            "🔤 TRÒ CHƠI NỐI TỪ BẮT ĐẦU!\n"
+            "Luật 1: Mỗi người 1 lượt, không được nối 2 lần liên tiếp.\n"
+            "Luật 2: Đợi Trọng tài check xong mới được nối tiếp.\n\n"
+            f"Từ khởi đầu của Bot: {tu_khoi_dau.upper()}\n"
+            f"👉 Tiếp theo bắt đầu bằng chữ: '{chu_cuoi.upper()}'"
+        )
+        self._reply(snap, luat_choi)
+
+    def _handle_noitu(self, snap: dict, thread_id: str, text: str) -> None:
+        import requests
+        
+        game = self._games[thread_id]
+        user_id = str(snap.get("userID") or "")
+        
+        # ====================================================
+        # LUẬT 1: CHỜ BOT CHECK XONG (KHÓA ĐỒNG BỘ)
+        # Nếu bot đang bận lên mạng tra từ điển thì bỏ qua mọi tin nhắn khác
+        if game.get("is_checking") == True:
+            return 
+            
+        # LUẬT 2: KHÔNG ĐƯỢC CHƠI 2 LƯỢT LIÊN TIẾP
+        if user_id == game.get("last_user_id"):
+            self._reply(snap, "🚫 Tham lam! Bạn vừa nối rồi, hãy nhường cơ hội cho người khác đi.")
+            return
+        # ====================================================
+
+        words = text.split()
+        
+        # 0. BỘ LỌC TỪ BẬY
+        danh_sach_den = ["cặc", "lồn", "đụ", "đĩ", "buồi", "dái", "cứt", "phò", "nứng", "địt"]
+        for tu_bay in danh_sach_den:
+            if tu_bay in text:
+                self._reply(snap, f"🤬 Thẻ đỏ! Dùng từ thô tục '{text.upper()}' nha! Nhập lại từ khác đi.")
+                return
+
+        # 1. Kiểm tra luật nối chữ
+        if words[0] != game["last_char"]:
+            self._reply(snap, f"❌ Sai rồi! Phải bắt đầu bằng chữ '{game['last_char'].upper()}'.")
+            return
+            
+        # 2. Kiểm tra từ trùng lặp
+        if text in game["used"]:
+            self._reply(snap, f"♻️ Từ '{text.upper()}' đã có người dùng rồi! Vui lòng nghĩ từ khác.")
+            return
+            
+        # KHÓA GAME LẠI: Đánh dấu đang tra từ điển để chặn người khác xông vào
+        game["is_checking"] = True
+        
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+        
+        # 3. Kiểm tra từ có nghĩa
+        try:
+            url = f"https://vi.wiktionary.org/w/api.php?action=query&titles={text}&format=json"
+            res = requests.get(url, headers=headers, timeout=5).json()
+            pages = res.get("query", {}).get("pages", {})
+            
+            is_valid = True
+            for page_id, info in pages.items():
+                if int(page_id) < 0 or "missing" in info:
+                    is_valid = False
+                    
+            if not is_valid:
+                self._reply(snap, f"❓ Chữ '{text.upper()}' không có trong từ điển tiếng Việt! Bớt tự bịa ra đi nha.")
+                game["is_checking"] = False # Nhả khóa ra cho nhập lại
+                return
+        except Exception as e:
+            print(f"[Lỗi Từ Điển] {e}")
+            self._reply(snap, f"⚠️ Trọng tài đang bị lỗi không tra được từ điển lúc này. Thử lại chữ khác nhé!")
+            game["is_checking"] = False # Nhả khóa ra
+            return
+            
+        # 4. Ghi nhận từ hợp lệ
+        game["used"].append(text)
+        game["last_char"] = words[1]
+        game["last_user_id"] = user_id # Lưu ID của người vừa nối thành công
+        
+        # Lấy tên người chơi
+        user_name = "Người chơi"
+        try:
+            res = _get_user_info.func(self.dataFB, str(snap.get("userID") or ""))
+            if isinstance(res, dict) and "err" not in res:
+                user_name = res.get("nameUser") or res.get("firstName") or "Bạn"
+        except:
+            pass
+
+        # 5. KIỂM TRA ĐƯỜNG CÙNG (CƠ CHẾ KẾT THÚC GAME)
+        try:
+            check_url = f"https://vi.wiktionary.org/w/api.php?action=query&list=prefixsearch&pssearch={game['last_char']} &format=json"
+            check_res = requests.get(check_url, headers=headers, timeout=5).json()
+            search_results = check_res.get("query", {}).get("prefixsearch", [])
+            
+            has_continuation = False
+            for item in search_results:
+                title = item["title"].lower()
+                if " " in title and title not in game["used"]:
+                    has_continuation = True
+                    break
+                    
+            if not has_continuation:
+                self._games.pop(thread_id)
+                msg_win = (
+                    f"🏆 ĐỈNH CẤP!\n"
+                    f"{user_name} vừa thả một từ 'chí mạng': 【 {text.upper()} 】\n\n"
+                    f"Từ điển tiếng Việt đã bó tay, không còn từ nào có thể nối tiếp chữ '{game['last_char'].upper()}' nữa!\n"
+                    f"🎉 CHÚC MỪNG {user_name.upper()} ĐÃ TRỞ THÀNH NGƯỜI CHIẾN THẮNG! 👑"
+                )
+                self._reply(snap, msg_win)
+                # Game đã kết thúc (xóa khỏi bộ nhớ) nên không cần nhả khóa is_checking nữa
+                return
+                
+        except Exception as e:
+            print(f"[Lỗi Kiểm Tra End Game] {e}")
+
+        # 6. MỞ KHÓA VÀ CHO CHƠI TIẾP
+        self._reply(snap, f"✅ {user_name} nối chuẩn!\n👉 Chữ tiếp theo: '{game['last_char'].upper()}'...")
+        game["is_checking"] = False # Nhả khóa ra để người khác nối
 
     def _handle_guess(self, snap: dict, thread_id: str, doan: int) -> None:
         so_bi_mat = self._games[thread_id]
