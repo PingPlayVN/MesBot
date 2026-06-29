@@ -140,6 +140,11 @@ class SimpleBot:
             "doanso": self._cmd_doanso,
             "huygame": self._cmd_huygame,
             "noitu":  self._cmd_noitu,
+            "nhac":   self._cmd_nhac,       # Đếm ngược (15m, 2h...)
+            "hen":    self._cmd_hen,        # Hẹn giờ trong ngày (20:00)
+            "lich":   self._cmd_lich,       # Hẹn ngày cụ thể (20:00 25/10)
+            "ds_nhac": self._cmd_ds_nhac,   # Xem danh sách
+            "huynhac": self._cmd_huynhac,
         }
 
     # -- public ---------------------------------------------------------------
@@ -156,6 +161,14 @@ class SimpleBot:
             daemon=True,
         )
         t.start()
+
+        t_reminder = threading.Thread(
+            target=self._check_reminders_loop,
+            name="firebase-reminders",
+            daemon=True,
+        )
+        t_reminder.start()
+
         log("bot", "Listener đã khởi động. Nhấn Ctrl+C để thoát.")
 
         try:
@@ -286,24 +299,42 @@ class SimpleBot:
         import random
         p = self.prefix
         
-        # Random phần mở bài
-        intro = random.choice([
+        intros = [
             "📖 Chào đằng ấy, đây là bí kíp võ công của bot:\n",
             "🤖 Menu phục vụ của quán hôm nay gồm có:\n",
             "✨ Để tui liệt kê sương sương mấy tài lẻ của tui nha:\n",
-            "💁‍♂️ Khách yêu cần gì cứ gọi theo cú pháp này nha:\n"
-        ])
+            "💁‍♂️ Khách yêu cần gì cứ gọi theo cú pháp này nha:\n",
+            "📜 Lấy sổ tay ra ghi chép lại các lệnh này nè:\n",
+            "🛠 Trợ lý đa năng xin báo cáo danh sách tính năng:\n",
+            "📂 Bảng vàng các lệnh bot hỗ trợ (đừng gõ sai nha):\n",
+            "💡 Bí thuật giao tiếp với bot nằm hết ở đây:\n",
+            "🧭 Bản đồ chỉ đường cho người mù công nghệ:\n",
+            "🗂 Cần gì thì cứ réo bot qua mấy lệnh dưới đây:\n"
+        ]
         
         cmds = (
-            f"• {p}ping — kiểm tra độ trễ\n"
-            f"• {p}help — hiển thị trợ giúp\n"
-            f"• {p}id — xem threadID + userID\n"
-            f"• {p}echo <text> — nhại lại tiếng người\n"
-            f"• {p}search <từ> — mò Info Facebook\n"
-            f"• {p}unsend — phi tang chứng cứ (chỉ Admin)\n"
-            f"• {p}hibot — gọi bot lên tâm sự mỏng"
+            f"🛠 HỆ THỐNG & CÔNG CỤ\n"
+            f" ├─ {p}ping: Kiểm tra tốc độ mạng\n"
+            f" ├─ {p}id: Lấy ID nhóm/cá nhân\n"
+            f" ├─ {p}echo: Bot nhại lại câu nói\n"
+            f" ├─ {p}search: Tìm info Facebook\n"
+            f" └─ {p}unsend: Thu hồi tin (Admin)\n\n"
+            f"🎮 GIẢI TRÍ & TRÒ CHUYỆN\n"
+            f" ├─ {p}hibot: Trò chuyện ngẫu nhiên\n"
+            f" ├─ {p}doanso: Game đoán số bí mật\n"
+            f" ├─ {p}noitu: Trò chơi nối từ\n"
+            f" └─ {p}huygame: Hủy game đang chơi\n\n"
+            f"⏰ TRỢ LÝ NHẮC HẸN\n"
+            f" ├─ {p}nhac <Số>m/h <Việc> (Đếm ngược)\n"
+            f" │   VD: {p}nhac 15m Tắt bếp\n"
+            f" ├─ {p}hen <Giờ> <Việc> (Trong ngày)\n"
+            f" │   VD: {p}hen 20:00 Họp nhóm\n"
+            f" ├─ {p}lich <Giờ> <Ngày/Năm> <Việc>\n"
+            f" │   VD: {p}lich 15:30 25/10/2026 Đám cưới\n"
+            f" ├─ {p}ds_nhac: Xem danh sách báo thức\n"
+            f" └─ {p}huynhac <Số>: Xóa lịch hẹn"
         )
-        self._reply(snap, intro + cmds)
+        self._reply(snap, random.choice(intros) + cmds)
 
     def _cmd_id(self, snap: dict, arg: str) -> None:
         import random
@@ -678,6 +709,370 @@ class SimpleBot:
                 f"Tụt xuống xíu đi, {doan} lớn quá rồi."
             ]
             self._reply(snap, random.choice(nho_hon))
+
+    def _cmd_nhac(self, snap: dict, arg: str) -> None:
+        """Lệnh đếm ngược thời gian: /nhac 15m Tắt bếp"""
+        import requests, random, time
+        from datetime import datetime, timedelta
+        
+        loi_cu_phap = [
+            f"⚠️ Xài sai rồi má! Cú pháp: {self.prefix}nhac <Số>m/h <Nội dung> (VD: {self.prefix}nhac 15m Nấu cơm)",
+            f"❌ Thiếu thiếu gì đó. Phải là: {self.prefix}nhac 2h Đi ngủ",
+            f"Gõ lại đi bạn: {self.prefix}nhac 30m Uống nước",
+            f"Lỗi cú pháp đếm ngược! Nhìn mẫu nè: {self.prefix}nhac 10s Test thử",
+            "Bot hông hiểu! Thêm thời gian (s/m/h) và nội dung vào nha."
+        ]
+        
+        if not arg:
+            self._reply(snap, random.choice(loi_cu_phap))
+            return
+            
+        parts = arg.split(maxsplit=1)
+        if len(parts) < 2:
+            self._reply(snap, random.choice(loi_cu_phap))
+            return
+            
+        time_str = parts[0].lower()
+        message = parts[1]
+        
+        seconds = 0
+        try:
+            if time_str.endswith('s'): seconds = int(time_str[:-1])
+            elif time_str.endswith('m'): seconds = int(time_str[:-1]) * 60
+            elif time_str.endswith('h'): seconds = int(time_str[:-1]) * 3600
+            elif time_str.isdigit(): seconds = int(time_str)
+            else: raise ValueError
+        except ValueError:
+            self._reply(snap, random.choice([
+                "❌ Ký hiệu thời gian sai! Dùng s (giây), m (phút), h (giờ). VD: 15m",
+                "Chỉ nhận s, m, h thôi. Bạn gõ cái chữ gì lạ vậy?",
+                "Thời gian không hợp lệ. Gõ 10m hoặc 1h nhé.",
+                "Gõ số đi liền với chữ (vd: 5m). Đừng gõ cách ra.",
+                "Lỗi đọc thời gian! Hãy ghi chuẩn như 30m hoặc 2h."
+            ]))
+            return
+
+        now_vn = datetime.utcnow() + timedelta(hours=7)
+        target_time = now_vn + timedelta(seconds=seconds)
+        target_timestamp = int(target_time.timestamp())
+        
+        self._save_reminder(snap, target_timestamp, target_time.strftime("%H:%M %d/%m/%Y"), message, time_str)
+
+    def _cmd_hen(self, snap: dict, arg: str) -> None:
+        """Lệnh hẹn giờ trong ngày: /hen 20:00 Đi học"""
+        import requests, random
+        from datetime import datetime, timedelta
+        
+        loi_cu_phap = [
+            f"⚠️ Hẹn giờ trong ngày: {self.prefix}hen HH:MM <Nội dung> (VD: {self.prefix}hen 20:00 Đi họp)",
+            f"❌ Sai cú pháp rồi bạn. Gõ thế này nhé: {self.prefix}hen 15:30 Ăn xế",
+            f"Thiếu giờ hoặc thiếu chữ rồi. Nhìn mẫu: {self.prefix}hen 08:00 Thức dậy",
+            f"Gõ lại giùm bot nha: {self.prefix}hen 12:00 Đi ăn trưa",
+            "Cú pháp sai bét! Chỉ cần Giờ:Phút và Nội dung thôi."
+        ]
+        
+        if not arg:
+            self._reply(snap, random.choice(loi_cu_phap))
+            return
+            
+        parts = arg.split(maxsplit=1)
+        if len(parts) < 2:
+            self._reply(snap, random.choice(loi_cu_phap))
+            return
+            
+        time_str = parts[0]
+        message = parts[1]
+        
+        now_vn = datetime.utcnow() + timedelta(hours=7)
+        try:
+            # Lấy ngày hôm nay ghép với giờ người dùng nhập
+            target_time = datetime.strptime(f"{time_str} {now_vn.strftime('%d/%m/%Y')}", "%H:%M %d/%m/%Y")
+            
+            # Nếu giờ đó đã trôi qua hôm nay -> Hiểu là giờ đó vào NGÀY MAI
+            if target_time <= now_vn:
+                target_time += timedelta(days=1)
+                
+            target_timestamp = int(target_time.timestamp())
+            self._save_reminder(snap, target_timestamp, target_time.strftime("%H:%M %d/%m/%Y"), message, f"vào {time_str}")
+            
+        except ValueError:
+            self._reply(snap, random.choice([
+                "❌ Ghi sai định dạng giờ! Phải là HH:MM (VD: 07:05, 20:30)",
+                "Giờ giấc lộn xộn quá. Ghi kiểu 24h đi (vd 15:00).",
+                "Đồng hồ bot không hiểu giờ này. Gõ lại nha.",
+                "Định dạng giờ sai! (00:00 đến 23:59)",
+                "Lỗi đọc đồng hồ. Ghi chuẩn HH:MM vào nhé."
+            ]))
+
+    def _cmd_lich(self, snap: dict, arg: str) -> None:
+        """Lệnh hẹn ngày xa: /lich 20:00 25/10/2026 Sinh nhật"""
+        import requests, random
+        from datetime import datetime, timedelta
+        
+        loi_cu_phap = [
+            f"⚠️ Lên lịch xa: {self.prefix}lich HH:MM DD/MM/YYYY <Nội dung>\n(VD: {self.prefix}lich 20:00 25/10/2026 Sinh nhật)",
+            f"❌ Sai cú pháp lịch rồi. Mẫu nè: {self.prefix}lich 15:30 01/01/2027 Nghỉ lễ",
+            f"Thiếu ngày hoặc tháng? Gõ lại nha: {self.prefix}lich 12:00 14/02/2026 Đi chơi",
+            f"Cú pháp hơi thiếu. Bổ sung cho đủ {self.prefix}lich Giờ Ngày/Năm Nội_dung",
+            "Đọc không ra ngày tháng! Làm lại theo cú pháp /lich nhé."
+        ]
+        
+        if not arg:
+            self._reply(snap, random.choice(loi_cu_phap))
+            return
+            
+        parts = arg.split(maxsplit=2)
+        if len(parts) < 3:
+            self._reply(snap, random.choice(loi_cu_phap))
+            return
+            
+        time_str = parts[0]
+        date_str = parts[1]
+        message = parts[2]
+        
+        now_vn = datetime.utcnow() + timedelta(hours=7)
+        try:
+            date_parts = date_str.split('/')
+            
+            # TRƯỜNG HỢP 1: NGƯỜI DÙNG LƯỜI (CHỈ GÕ NGÀY/THÁNG)
+            if len(date_parts) == 2:
+                target_year = now_vn.year
+                target_time = datetime.strptime(f"{time_str} {date_str}/{target_year}", "%H:%M %d/%m/%Y")
+                
+                # Nếu ngày đó của năm nay đã qua -> Tự động đẩy sang năm sau
+                if target_time < now_vn:
+                    target_time = datetime.strptime(f"{time_str} {date_str}/{target_year + 1}", "%H:%M %d/%m/%Y")
+                    
+            # TRƯỜNG HỢP 2: NGƯỜI DÙNG CHĂM CHỈ (GÕ ĐỦ NGÀY/THÁNG/NĂM)
+            elif len(date_parts) == 3:
+                # Ép năm sang định dạng 4 số nếu họ chỉ gõ 2 số (vd: /24 -> /2024)
+                if len(date_parts[2]) == 2:
+                    date_parts[2] = "20" + date_parts[2]
+                    date_str = "/".join(date_parts)
+                    
+                target_time = datetime.strptime(f"{time_str} {date_str}", "%H:%M %d/%m/%Y")
+                
+                if target_time < now_vn:
+                    self._reply(snap, random.choice([
+                        "⏳ Ngày này trôi qua rồi bạn ơi! Hẹn ngày tương lai đi.",
+                        "Quá khứ không thể níu kéo, đổi năm khác giùm bot.",
+                        "Ủa cỗ máy thời gian bị hỏng à? Sao lại hẹn lùi về quá khứ?",
+                        "Ngày này của năm đó qua rồi mà má!"
+                    ]))
+                    return
+            else:
+                raise ValueError
+                
+            target_timestamp = int(target_time.timestamp())
+            self._save_reminder(snap, target_timestamp, target_time.strftime("%H:%M %d/%m/%Y"), message, f"ngày {target_time.strftime('%d/%m/%Y')} lúc {time_str}")
+            
+        except ValueError:
+            self._reply(snap, random.choice([
+                "❌ Lỗi định dạng ngày giờ! Dùng: HH:MM DD/MM/YYYY (VD: 20:00 25/10/2026)",
+                "Bạn gõ ngày tháng sai rồi. Dấu xuyệt (/) để chia ngày tháng năm nhé.",
+                "Định dạng ngày là Ngày/Tháng/Năm. Gõ lại nào.",
+                "Lịch này đọc không hiểu! Sai giờ hoặc sai ngày rồi.",
+                "Sai bét bèn ben định dạng thời gian. Sửa lại đi nha."
+            ]))
+
+    def _save_reminder(self, snap: dict, target_timestamp: int, display_time: str, message: str, time_label: str) -> None:
+        """Hàm dùng chung để đẩy dữ liệu lên Firebase"""
+        import requests, random
+        firebase_url = load_config().get("firebase_url")
+        thread_id = str(snap["replyToID"])
+        user_id = str(snap.get("userID") or "")
+        
+        data_to_save = {
+            "message": message,
+            "user_id": user_id,
+            "type_chat": snap.get("type"),
+            "display_time": display_time
+        }
+        
+        try:
+            requests.patch(f"{firebase_url}/reminders/{thread_id}.json", json={str(target_timestamp): data_to_save})
+            xac_nhan = [
+                f"✅ Đã chốt đơn! Tới {time_label} tui sẽ réo.",
+                f"👌 Lên lịch thành công! Cứ an tâm nha.",
+                f"Đã lưu vào bộ nhớ đám mây! Tới {time_label} là có mặt.",
+                f"Xong! Đồng hồ đã điểm, chờ thông báo nhé.",
+                f"Ghi nhận! Bạn cứ làm việc khác đi, việc nhắc để bot lo.",
+                f"Set kèo thành công! Tới {time_label} sẽ hú.",
+                f"Đã lên dây cót đồng hồ! Chờ tui réo nha.",
+                f"Lịch hẹn đã được chốt sổ! An tâm nha."
+            ]
+            self._reply(snap, random.choice(xac_nhan))
+        except Exception as e:
+            self._reply(snap, f"❌ Lỗi CSDL đám mây: {e}")
+
+    def _cmd_ds_nhac(self, snap: dict, arg: str) -> None:
+        import requests, random
+        from datetime import datetime
+        
+        thread_id = str(snap["replyToID"])
+        firebase_url = load_config().get("firebase_url")
+        
+        khong_co_data = [
+            "📭 Nhóm mình hiện không có cái hẹn nào hết á.",
+            "Sạch bách! Không có báo thức nào đang chờ.",
+            "Check rồi, trống trơn nha. Đặt báo thức đi!",
+            "Chẳng có lịch hẹn nào cả, dạo này rảnh rỗi ghê.",
+            "Hệ thống không ghi nhận báo thức nào của nhóm này.",
+            "Lịch trống trơn, ngủ khỏe đi các bạn."
+        ]
+        
+        try:
+            res = requests.get(f"{firebase_url}/reminders/{thread_id}.json")
+            if res.status_code != 200 or not res.json():
+                self._reply(snap, random.choice(khong_co_data))
+                return
+            
+            reminders = res.json()
+            sorted_ts = sorted(reminders.keys(), key=lambda x: int(x))
+            
+            msg = random.choice([
+                "📋 DANH SÁCH BÁO THỨC CỦA NHÓM:\n",
+                "⏰ CÁC LỊCH HẸN ĐANG CHỜ:\n",
+                "🗓 Sổ tay nhắc việc của nhóm mình nè:\n",
+                "🔔 Điểm danh các kèo đã set:\n",
+                "🗂 Báo cáo danh sách hẹn giờ:\n"
+            ])
+            
+            for idx, ts in enumerate(sorted_ts, 1):
+                data = reminders[ts]
+                dt = datetime.fromtimestamp(int(ts)).strftime('%H:%M %d/%m')
+                icon = "⏳" if data.get("is_pre") else "⏰"
+                msg += f"{idx}. {icon} {dt} - {data.get('message')[:40]}\n"
+            
+            msg += f"\n💡 Để xóa lịch, gõ: {self.prefix}huynhac <Số thứ tự>"
+            self._reply(snap, msg)
+            
+        except Exception as e:
+            self._reply(snap, f"❌ Lỗi truy xuất: {e}")
+
+    def _cmd_huynhac(self, snap: dict, arg: str) -> None:
+        import requests, random
+        thread_id = str(snap["replyToID"])
+        firebase_url = load_config().get("firebase_url")
+        
+        sai_cu_phap = [
+            f"⚠️ Phải nhập số thứ tự để xóa. VD: {self.prefix}huynhac 1\n(Xem số bằng lệnh {self.prefix}ds_nhac)",
+            f"Xóa cái nào? Đưa số thứ tự đây. VD: {self.prefix}huynhac 2",
+            "Chưa nhập ID báo thức kìa bạn ơi.",
+            "Ủa xóa báo thức số mấy? Gõ thêm số vào nhé.",
+            "Vui lòng kèm theo số thứ tự của báo thức cần hủy."
+        ]
+        
+        if not arg or not arg.isdigit():
+            self._reply(snap, random.choice(sai_cu_phap))
+            return
+            
+        idx_to_delete = int(arg)
+        
+        try:
+            res = requests.get(f"{firebase_url}/reminders/{thread_id}.json")
+            if res.status_code != 200 or not res.json():
+                self._reply(snap, random.choice([
+                    "Nhóm có báo thức nào đâu mà đòi xóa?",
+                    "Làm gì có lịch hẹn nào mà hủy hả trời?",
+                    "Trống trơn rồi, không cần xóa nữa đâu.",
+                    "Danh sách sạch bóng rồi, khỏi xóa.",
+                    "Vườn không nhà trống, lấy đâu ra báo thức mà xóa."
+                ]))
+                return
+                
+            reminders = res.json()
+            sorted_ts = sorted(reminders.keys(), key=lambda x: int(x))
+            
+            if idx_to_delete < 1 or idx_to_delete > len(sorted_ts):
+                self._reply(snap, random.choice([
+                    "❌ Số thứ tự không tồn tại! Coi lại danh sách đi.",
+                    "Tào lao! Làm gì có số này trong danh sách.",
+                    "Nhập sai số rồi, kiểm tra lại bằng lệnh ds_nhac nha.",
+                    "Vượt quá số lượng báo thức hiện có. Nhập số nhỏ hơn đi.",
+                    "Số ảo à? Nhập đúng số thứ tự giùm."
+                ]))
+                return
+                
+            ts_to_delete = sorted_ts[idx_to_delete - 1]
+            requests.delete(f"{firebase_url}/reminders/{thread_id}/{ts_to_delete}.json")
+            
+            xoa_ok = [
+                "🗑 Đã phi tang báo thức thành công!",
+                "✅ Đã hủy kèo này nha.",
+                "Xóa lịch hẹn rồi đó, khỏi lo bị réo.",
+                "Mission Passed! Báo thức đã bay màu.",
+                "Đã gạch tên báo thức này khỏi sổ tay.",
+                "Hủy thành công. Cần gì cứ đặt lại nhé."
+            ]
+            self._reply(snap, random.choice(xoa_ok))
+            
+        except Exception as e:
+            self._reply(snap, f"❌ Lỗi CSDL: {e}")
+
+
+    # =========================================================================
+    # VÒNG LẶP CHẠY NGẦM: QUÉT FIREBASE MỖI PHÚT ĐỂ TÌM BÁO THỨC ĐẾN HẠN
+    def _check_reminders_loop(self) -> None:
+        import time
+        import requests
+        import random
+        from datetime import datetime, timedelta
+        
+        firebase_url = load_config().get("firebase_url")
+        if not firebase_url: return
+            
+        while True:
+            try:
+                # Lấy giờ VN hiện tại
+                now_timestamp = int((datetime.utcnow() + timedelta(hours=7)).timestamp())
+                
+                # Tải toàn bộ lịch hẹn về
+                res = requests.get(f"{firebase_url}/reminders.json")
+                if res.status_code == 200 and res.json():
+                    all_reminders = res.json()
+                    
+                    for thread_id, timestamps in all_reminders.items():
+                        if not timestamps: continue
+                        
+                        for ts_str, data in list(timestamps.items()):
+                            if int(ts_str) <= now_timestamp:
+                                # ĐÃ ĐẾN GIỜ -> GỬI THÔNG BÁO
+                                user_id = data.get("user_id", "")
+                                message = data.get("message", "")
+                                
+                                user_name = "Bạn"
+                                try:
+                                    info = _get_user_info.func(self.dataFB, user_id)
+                                    if isinstance(info, dict) and "err" not in info:
+                                        user_name = info.get("nameUser") or info.get("firstName") or "Bạn"
+                                except: pass
+                                
+                                loi_nhac = random.choice([
+                                    f"⏰ TING TING! Tới giờ rồi cả nhà ơi!\n🔔 {user_name} nhắc:\n👉 {message}",
+                                    f"🚨 BÁO ĐỘNG TOÀN THỂ NHÓM CHAT!\n🔔 Lịch hẹn của {user_name}:\n👉 {message}",
+                                    f"📢 LOA LOA LOA! Có hẹn có hẹn!\n🔔 {user_name} nhờ bot hú:\n👉 {message}",
+                                    f"🎯 CHÚ Ý CHÚ Ý!\n🔔 Đến giờ thực thi nhiệm vụ của {user_name}:\n👉 {message}",
+                                    f"🚀 ĐẾN GIỜ G RỒI!\n🔔 Lệnh từ {user_name}:\n👉 {message}",
+                                    f"🔥 ALO ALO! Bùng cháy lên nào!\n🔔 {user_name} nhắc nhở:\n👉 {message}",
+                                    f"💌 CÓ THƯ TỪ TƯƠNG LAI!\n🔔 {user_name} gửi lời nhắn:\n👉 {message}"
+                                ])
+                                
+                                fake_snap = {
+                                    "replyToID": thread_id,
+                                    "type": data.get("type_chat", "group"),
+                                    "userID": user_id
+                                }
+                                self._reply(fake_snap, loi_nhac)
+                                
+                                # XÓA BÁO THỨC KHỎI FIREBASE ĐỂ KHÔNG BỊ LẶP LẠI
+                                requests.delete(f"{firebase_url}/reminders/{thread_id}/{ts_str}.json")
+                                
+            except Exception as e:
+                pass # Lỗi mạng tạm thời thì bỏ qua, phút sau check lại
+                
+            time.sleep(60) # Ngủ 60 giây rồi quét tiếp
+
 
 
 # ---------------------------------------------------------------------------
