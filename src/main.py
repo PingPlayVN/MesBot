@@ -711,30 +711,44 @@ class SimpleBot:
             self._reply(snap, random.choice(nho_hon))
 
     def _cmd_nhac(self, snap: dict, arg: str) -> None:
-        """Lệnh đếm ngược thời gian: /nhac 15m Tắt bếp"""
-        import requests, random, time
+        """Lệnh đếm ngược: /nhac 15m [-t 5m] Tắt bếp"""
+        import requests, random
         from datetime import datetime, timedelta
         
-        loi_cu_phap = [
-            f"⚠️ Xài sai rồi má! Cú pháp: {self.prefix}nhac <Số>m/h <Nội dung> (VD: {self.prefix}nhac 15m Nấu cơm)",
-            f"❌ Thiếu thiếu gì đó. Phải là: {self.prefix}nhac 2h Đi ngủ",
-            f"Gõ lại đi bạn: {self.prefix}nhac 30m Uống nước",
-            f"Lỗi cú pháp đếm ngược! Nhìn mẫu nè: {self.prefix}nhac 10s Test thử",
-            "Bot hông hiểu! Thêm thời gian (s/m/h) và nội dung vào nha."
-        ]
-        
         if not arg:
-            self._reply(snap, random.choice(loi_cu_phap))
+            self._reply(snap, f"⚠️ Cú pháp: {self.prefix}nhac <Số>m/h [-t nhắc_trước] <Việc>\nVD: {self.prefix}nhac 30m -t 5m Đi đón con")
             return
             
-        parts = arg.split(maxsplit=1)
+        parts = arg.split()
+        pre_remind = 0
+        
+        # Thuật toán bóc tách cờ -t siêu thông minh
+        if "-t" in parts:
+            idx = parts.index("-t")
+            if idx + 1 < len(parts):
+                t_val = parts[idx+1]
+                try:
+                    if t_val.endswith('m'): pre_remind = int(t_val[:-1]) * 60
+                    elif t_val.endswith('h'): pre_remind = int(t_val[:-1]) * 3600
+                    elif t_val.endswith('s'): pre_remind = int(t_val[:-1])
+                except ValueError:
+                    pass
+                del parts[idx:idx+2]
+                
         if len(parts) < 2:
-            self._reply(snap, random.choice(loi_cu_phap))
+            self._reply(snap, "❌ Thiếu nội dung hoặc thời gian rồi bạn ơi!")
             return
             
         time_str = parts[0].lower()
-        message = parts[1]
+        message = " ".join(parts[1:])
         
+        if len(message) > 200:
+            self._reply(snap, random.choice([
+                "❌ Dài quá! Ghi chú tối đa 200 ký tự thôi nha.",
+                "⚠️ Bot không nhận viết sớ, rút gọn nội dung dưới 200 chữ giùm!"
+            ]))
+            return
+
         seconds = 0
         try:
             if time_str.endswith('s'): seconds = int(time_str[:-1])
@@ -743,155 +757,152 @@ class SimpleBot:
             elif time_str.isdigit(): seconds = int(time_str)
             else: raise ValueError
         except ValueError:
-            self._reply(snap, random.choice([
-                "❌ Ký hiệu thời gian sai! Dùng s (giây), m (phút), h (giờ). VD: 15m",
-                "Chỉ nhận s, m, h thôi. Bạn gõ cái chữ gì lạ vậy?",
-                "Thời gian không hợp lệ. Gõ 10m hoặc 1h nhé.",
-                "Gõ số đi liền với chữ (vd: 5m). Đừng gõ cách ra.",
-                "Lỗi đọc thời gian! Hãy ghi chuẩn như 30m hoặc 2h."
-            ]))
+            self._reply(snap, "❌ Ký hiệu thời gian sai! Dùng s, m, h (VD: 15m, 2h).")
+            return
+
+        if seconds <= 0:
+            self._reply(snap, "❌ Lùi thời gian à? Gõ số lớn hơn 0 đi.")
+            return
+        if seconds > 172800:  # Tối đa đếm ngược 48 giờ
+            self._reply(snap, f"❌ Đếm ngược xa vậy? Quá 48h thì bạn dùng lệnh {self.prefix}lich cho lẹ nha!")
             return
 
         now_vn = datetime.utcnow() + timedelta(hours=7)
         target_time = now_vn + timedelta(seconds=seconds)
-        target_timestamp = int(target_time.timestamp())
         
-        self._save_reminder(snap, target_timestamp, target_time.strftime("%H:%M %d/%m/%Y"), message, time_str)
+        self._save_reminder(snap, int(target_time.timestamp()), target_time.strftime("%H:%M %d/%m"), message, time_str, pre_remind)
 
     def _cmd_hen(self, snap: dict, arg: str) -> None:
-        """Lệnh hẹn giờ trong ngày: /hen 20:00 Đi học"""
+        """Lệnh hẹn giờ trong ngày: /hen 20:00 [-t 15m] Họp nhóm"""
         import requests, random
         from datetime import datetime, timedelta
         
-        loi_cu_phap = [
-            f"⚠️ Hẹn giờ trong ngày: {self.prefix}hen HH:MM <Nội dung> (VD: {self.prefix}hen 20:00 Đi họp)",
-            f"❌ Sai cú pháp rồi bạn. Gõ thế này nhé: {self.prefix}hen 15:30 Ăn xế",
-            f"Thiếu giờ hoặc thiếu chữ rồi. Nhìn mẫu: {self.prefix}hen 08:00 Thức dậy",
-            f"Gõ lại giùm bot nha: {self.prefix}hen 12:00 Đi ăn trưa",
-            "Cú pháp sai bét! Chỉ cần Giờ:Phút và Nội dung thôi."
-        ]
-        
         if not arg:
-            self._reply(snap, random.choice(loi_cu_phap))
+            self._reply(snap, f"⚠️ Cú pháp: {self.prefix}hen HH:MM [-t nhắc_trước] <Việc>\nVD: {self.prefix}hen 20:00 -t 15m Đi học")
             return
             
-        parts = arg.split(maxsplit=1)
+        parts = arg.split()
+        pre_remind = 0
+        if "-t" in parts:
+            idx = parts.index("-t")
+            if idx + 1 < len(parts):
+                t_val = parts[idx+1]
+                try:
+                    if t_val.endswith('m'): pre_remind = int(t_val[:-1]) * 60
+                    elif t_val.endswith('h'): pre_remind = int(t_val[:-1]) * 3600
+                except: pass
+                del parts[idx:idx+2]
+                
         if len(parts) < 2:
-            self._reply(snap, random.choice(loi_cu_phap))
+            self._reply(snap, "❌ Thiếu nội dung hoặc giờ rồi. (VD: /hen 20:00 Ăn cơm)")
             return
             
         time_str = parts[0]
-        message = parts[1]
+        message = " ".join(parts[1:])
         
+        if len(message) > 200:
+            self._reply(snap, "❌ Lỗi: Nội dung dài hơn 200 ký tự bot đọc không nổi nha.")
+            return
+
         now_vn = datetime.utcnow() + timedelta(hours=7)
         try:
-            # Lấy ngày hôm nay ghép với giờ người dùng nhập
             target_time = datetime.strptime(f"{time_str} {now_vn.strftime('%d/%m/%Y')}", "%H:%M %d/%m/%Y")
             
-            # Nếu giờ đó đã trôi qua hôm nay -> Hiểu là giờ đó vào NGÀY MAI
             if target_time <= now_vn:
-                target_time += timedelta(days=1)
+                self._reply(snap, f"⏳ Giờ này của hôm nay qua mất rồi! Nếu định hẹn ngày mai, hãy dùng: {self.prefix}lich {time_str} {(now_vn + timedelta(days=1)).strftime('%d/%m')}")
+                return
                 
-            target_timestamp = int(target_time.timestamp())
-            self._save_reminder(snap, target_timestamp, target_time.strftime("%H:%M %d/%m/%Y"), message, f"vào {time_str}")
-            
+            self._save_reminder(snap, int(target_time.timestamp()), target_time.strftime("%H:%M hôm nay"), message, f"vào {time_str}", pre_remind)
         except ValueError:
-            self._reply(snap, random.choice([
-                "❌ Ghi sai định dạng giờ! Phải là HH:MM (VD: 07:05, 20:30)",
-                "Giờ giấc lộn xộn quá. Ghi kiểu 24h đi (vd 15:00).",
-                "Đồng hồ bot không hiểu giờ này. Gõ lại nha.",
-                "Định dạng giờ sai! (00:00 đến 23:59)",
-                "Lỗi đọc đồng hồ. Ghi chuẩn HH:MM vào nhé."
-            ]))
+            self._reply(snap, "❌ Ghi sai định dạng giờ! Phải là HH:MM (VD: 07:05, 20:30, không có giờ ảo như 25:99 đâu nha).")
 
     def _cmd_lich(self, snap: dict, arg: str) -> None:
         """Lệnh hẹn ngày xa: /lich 20:00 25/10/2026 Sinh nhật"""
         import requests, random
         from datetime import datetime, timedelta
         
-        loi_cu_phap = [
-            f"⚠️ Lên lịch xa: {self.prefix}lich HH:MM DD/MM/YYYY <Nội dung>\n(VD: {self.prefix}lich 20:00 25/10/2026 Sinh nhật)",
-            f"❌ Sai cú pháp lịch rồi. Mẫu nè: {self.prefix}lich 15:30 01/01/2027 Nghỉ lễ",
-            f"Thiếu ngày hoặc tháng? Gõ lại nha: {self.prefix}lich 12:00 14/02/2026 Đi chơi",
-            f"Cú pháp hơi thiếu. Bổ sung cho đủ {self.prefix}lich Giờ Ngày/Năm Nội_dung",
-            "Đọc không ra ngày tháng! Làm lại theo cú pháp /lich nhé."
-        ]
-        
         if not arg:
-            self._reply(snap, random.choice(loi_cu_phap))
+            self._reply(snap, f"⚠️ Cú pháp: {self.prefix}lich HH:MM DD/MM/YYYY [-t nhắc_trước] <Việc>\nVD: {self.prefix}lich 20:00 25/10/2026 -t 2h Đám cưới")
             return
             
-        parts = arg.split(maxsplit=2)
+        parts = arg.split()
+        pre_remind = 0
+        if "-t" in parts:
+            idx = parts.index("-t")
+            if idx + 1 < len(parts):
+                t_val = parts[idx+1]
+                try:
+                    if t_val.endswith('m'): pre_remind = int(t_val[:-1]) * 60
+                    elif t_val.endswith('h'): pre_remind = int(t_val[:-1]) * 3600
+                except: pass
+                del parts[idx:idx+2]
+                
         if len(parts) < 3:
-            self._reply(snap, random.choice(loi_cu_phap))
+            self._reply(snap, "❌ Thiếu dữ kiện! Cần đủ: Giờ, Ngày/Tháng và Nội dung.")
             return
             
         time_str = parts[0]
         date_str = parts[1]
-        message = parts[2]
+        message = " ".join(parts[2:])
         
+        if len(message) > 200:
+            self._reply(snap, "❌ Dài dòng quá! Tóm tắt nội dung dưới 200 chữ thôi bạn.")
+            return
+            
         now_vn = datetime.utcnow() + timedelta(hours=7)
         try:
             date_parts = date_str.split('/')
-            
-            # TRƯỜNG HỢP 1: NGƯỜI DÙNG LƯỜI (CHỈ GÕ NGÀY/THÁNG)
             if len(date_parts) == 2:
                 target_year = now_vn.year
                 target_time = datetime.strptime(f"{time_str} {date_str}/{target_year}", "%H:%M %d/%m/%Y")
-                
-                # Nếu ngày đó của năm nay đã qua -> Tự động đẩy sang năm sau
                 if target_time < now_vn:
                     target_time = datetime.strptime(f"{time_str} {date_str}/{target_year + 1}", "%H:%M %d/%m/%Y")
-                    
-            # TRƯỜNG HỢP 2: NGƯỜI DÙNG CHĂM CHỈ (GÕ ĐỦ NGÀY/THÁNG/NĂM)
             elif len(date_parts) == 3:
-                # Ép năm sang định dạng 4 số nếu họ chỉ gõ 2 số (vd: /24 -> /2024)
                 if len(date_parts[2]) == 2:
                     date_parts[2] = "20" + date_parts[2]
                     date_str = "/".join(date_parts)
-                    
                 target_time = datetime.strptime(f"{time_str} {date_str}", "%H:%M %d/%m/%Y")
-                
                 if target_time < now_vn:
-                    self._reply(snap, random.choice([
-                        "⏳ Ngày này trôi qua rồi bạn ơi! Hẹn ngày tương lai đi.",
-                        "Quá khứ không thể níu kéo, đổi năm khác giùm bot.",
-                        "Ủa cỗ máy thời gian bị hỏng à? Sao lại hẹn lùi về quá khứ?",
-                        "Ngày này của năm đó qua rồi mà má!"
-                    ]))
+                    self._reply(snap, "⏳ Cỗ máy thời gian bị hỏng à? Ngày này trong quá khứ mất rồi.")
                     return
             else:
                 raise ValueError
                 
-            target_timestamp = int(target_time.timestamp())
-            self._save_reminder(snap, target_timestamp, target_time.strftime("%H:%M %d/%m/%Y"), message, f"ngày {target_time.strftime('%d/%m/%Y')} lúc {time_str}")
-            
+            self._save_reminder(snap, int(target_time.timestamp()), target_time.strftime("%H:%M %d/%m/%Y"), message, f"ngày {target_time.strftime('%d/%m')} lúc {time_str}", pre_remind)
         except ValueError:
-            self._reply(snap, random.choice([
-                "❌ Lỗi định dạng ngày giờ! Dùng: HH:MM DD/MM/YYYY (VD: 20:00 25/10/2026)",
-                "Bạn gõ ngày tháng sai rồi. Dấu xuyệt (/) để chia ngày tháng năm nhé.",
-                "Định dạng ngày là Ngày/Tháng/Năm. Gõ lại nào.",
-                "Lịch này đọc không hiểu! Sai giờ hoặc sai ngày rồi.",
-                "Sai bét bèn ben định dạng thời gian. Sửa lại đi nha."
-            ]))
+            self._reply(snap, "❌ Lỗi định dạng ngày giờ! Dùng: HH:MM DD/MM/YYYY (VD: 20:00 25/10/2026). Đừng tạo giờ ngày ảo.")
 
-    def _save_reminder(self, snap: dict, target_timestamp: int, display_time: str, message: str, time_label: str) -> None:
-        """Hàm dùng chung để đẩy dữ liệu lên Firebase"""
+    def _save_reminder(self, snap: dict, target_timestamp: int, display_time: str, message: str, time_label: str, pre_remind: int = 0) -> None:
+        """Hàm lưu Firebase hỗ trợ tạo thêm báo thức nhắc sớm"""
         import requests, random
+        from datetime import datetime, timedelta
+        
         firebase_url = load_config().get("firebase_url")
         thread_id = str(snap["replyToID"])
-        user_id = str(snap.get("userID") or "")
+        now_ts = int((datetime.utcnow() + timedelta(hours=7)).timestamp())
         
         data_to_save = {
             "message": message,
-            "user_id": user_id,
+            "user_id": str(snap.get("userID") or ""),
             "type_chat": snap.get("type"),
-            "display_time": display_time
+            "display_time": display_time,
+            "is_pre": False
         }
         
+        payload = {str(target_timestamp): data_to_save}
+        
+        # TẠO BÁO THỨC NHẮC TRƯỚC (NẾU CÓ)
+        if pre_remind > 0:
+            pre_time = target_timestamp - pre_remind
+            if pre_time > now_ts:
+                pre_data = data_to_save.copy()
+                pre_data["message"] = f"[SẮP TỚI HẠN] {message}"
+                pre_data["is_pre"] = True
+                payload[str(pre_time)] = pre_data
+        
         try:
-            requests.patch(f"{firebase_url}/reminders/{thread_id}.json", json={str(target_timestamp): data_to_save})
-            xac_nhan = [
+            requests.patch(f"{firebase_url}/reminders/{thread_id}.json", json=payload)
+            msg_ok = random.choice([
                 f"✅ Đã chốt đơn! Tới {time_label} tui sẽ réo.",
                 f"👌 Lên lịch thành công! Cứ an tâm nha.",
                 f"Đã lưu vào bộ nhớ đám mây! Tới {time_label} là có mặt.",
@@ -900,8 +911,10 @@ class SimpleBot:
                 f"Set kèo thành công! Tới {time_label} sẽ hú.",
                 f"Đã lên dây cót đồng hồ! Chờ tui réo nha.",
                 f"Lịch hẹn đã được chốt sổ! An tâm nha."
-            ]
-            self._reply(snap, random.choice(xac_nhan))
+            ])
+            if pre_remind > 0:
+                msg_ok += f"\n(🔔 Bot sẽ nhắc sớm trước {pre_remind//60 if pre_remind%3600 else pre_remind//3600}{'m' if pre_remind%3600 else 'h'})"
+            self._reply(snap, msg_ok)
         except Exception as e:
             self._reply(snap, f"❌ Lỗi CSDL đám mây: {e}")
 
